@@ -13,23 +13,51 @@ class User(AbstractUser):
     pass
 
 
-class Industry(models.Model):
-    industry_level1 = models.CharField(max_length=100)
-    industry_level2 = models.CharField(max_length=100)
+class IndustryLevel1(models.Model):
+    industry_level_1 = models.CharField(max_length=100)
 
     def __str__(self):
-        return f"{self.industry_level1} - {self.industry_level2}"
+        return f"{self.industry_level_1}"
+
+
+class Industry(models.Model):
+    industry_level_1 = models.ForeignKey(
+        IndustryLevel1, on_delete=models.CASCADE, related_name="sub_industries"
+    )
+    industry_level_2 = models.CharField(max_length=100)
+
+    def __str__(self):
+        return f"{self.industry_level_1} - {self.industry_level_2}"
+
+
+class StockExchange(models.Model):
+    stock_exchange = models.CharField(max_length=10)
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return f"{self.stock_exchange}"
 
 
 class Company(models.Model):
-    code = models.CharField(max_length=20)
+    code_vs = models.CharField(max_length=20, null=True)
+    code_fiin = models.CharField(max_length=20, null=True)
     name = models.CharField(max_length=100)
     industry = models.ForeignKey(
-        Industry, on_delete=models.CASCADE, related_name="companies"
+        Industry,
+        on_delete=models.CASCADE,
+        related_name="companies",
+    )
+    exchange = models.ForeignKey(
+        StockExchange, on_delete=models.SET_NULL, related_name="companies", null=True
     )
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["code_vs", "name"], name="unique_company")
+        ]
+
     def __str__(self):
-        return f"{self.code}"
+        return f"{self.code_vs}"
 
 
 class Statement(models.Model):
