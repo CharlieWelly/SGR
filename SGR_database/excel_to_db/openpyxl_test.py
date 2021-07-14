@@ -212,11 +212,16 @@ class MatchCode(object):
         # Try to match the different companies from fiin to vs dataset
         matches = []
         for fiin_com in self.fiin_diff:
+            temp = []
             for vs_com in self.vs_diff:
                 q = re.compile(r".*{}.*".format(fiin_com[1]), re.IGNORECASE)
                 m = q.match(vs_com[1])
                 if m:
-                    matches.append((fiin_com, vs_com))
+                    temp.append((fiin_com, vs_com))
+            if len(temp) == 1:
+                matches.append((fiin_com, vs_com))
+            elif len(temp) > 1:
+                print(temp)
         return matches
 
     def prepare_ticket_dict(self):
