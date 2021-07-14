@@ -1,0 +1,4 @@
+/venv
+**.DS_Store
+/**.vs_code
+../.DS_Store
