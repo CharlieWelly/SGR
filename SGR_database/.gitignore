@@ -1,4 +1,7 @@
 /venv
 **.DS_Store
 /**.vs_code
+*/__pycache__/*
+*/*/__pycache__/*
+database/migrations/__pycache__/*
 ../.DS_Store
