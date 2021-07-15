@@ -14,7 +14,7 @@ class User(AbstractUser):
 
 
 class IndustryLevel1(models.Model):
-    industry_level_1 = models.CharField(max_length=100)
+    industry_level_1 = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return f"{self.industry_level_1}"
@@ -31,7 +31,7 @@ class Industry(models.Model):
 
 
 class StockExchange(models.Model):
-    stock_exchange = models.CharField(max_length=10)
+    stock_exchange = models.CharField(max_length=10, unique=True)
     name = models.CharField(max_length=100)
 
     def __str__(self):
@@ -44,7 +44,8 @@ class Company(models.Model):
     name = models.CharField(max_length=100)
     industry = models.ForeignKey(
         Industry,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name="companies",
     )
     exchange = models.ForeignKey(
@@ -61,10 +62,27 @@ class Company(models.Model):
 
 
 class Statement(models.Model):
+    class Categories(models.TextChoices):
+        DN = "DN", "Doanh nghiệp - Ngân hàng"
+        CK = "CK", "Chứng Khoán"
+        QLQ = "QLQ", "Quản lý quỹ"
+        TC = "TC", "Công ty tài chính"
+
+    statement_category = models.CharField(
+        max_length=3, choices=Categories.choices, default=Categories.DN
+    )
     statement_name = models.CharField(max_length=100)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["statement_category", "statement_name"],
+                name="unique_statement",
+            )
+        ]
+
     def __str__(self):
-        return f"{self.statement_name}"
+        return f"{self.statement_category} - {self.statement_name}"
 
 
 class StatementRow(models.Model):
@@ -75,6 +93,13 @@ class StatementRow(models.Model):
     row_order = models.IntegerField()
     row_description = models.CharField(max_length=100, null=True, blank=True)
     row_properties = models.CharField(max_length=100, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["statement", "row_order"], name="unique_row"
+            )
+        ]
 
     def __str__(self):
         return f"{self.row_order}: {self.statement} - {self.title}"

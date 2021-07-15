@@ -1,6 +1,6 @@
 /venv
 **.DS_Store
-/**.vs_code
+/.vscode/
 */__pycache__/*
 */*/__pycache__/*
 database/migrations/__pycache__/*

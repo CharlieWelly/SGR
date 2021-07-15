@@ -2,6 +2,7 @@ import re
 
 import pandas as pd
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import IntegrityError
 from openpyxl import load_workbook
 
 
@@ -27,7 +28,7 @@ class IndustryToDB(object):
             # to skip the heading
             g = ws.iter_rows(values_only=True)
             next(g)
-            # -------------------#
+
             for couple in g:
                 industry_2, industry_1 = couple
                 industry_group_1.add(industry_1)
@@ -218,9 +219,10 @@ class MatchCode(object):
                 m = q.match(vs_com[1])
                 if m:
                     temp.append((fiin_com, vs_com))
-            if len(temp) == 1:
+
+            if len(temp) == 1:  # there is only 1 match
                 matches.append((fiin_com, vs_com))
-            elif len(temp) > 1:
+            elif len(temp) > 1:  # there are more than 1 match
                 print(temp)
         return matches
 
@@ -247,3 +249,120 @@ class MatchCode(object):
             company = Company.objects.get(code_vs=code_vs)
             company.code_fiin = self.ticket_dict[code_vs]
             company.save()
+
+
+class ReportType(object):
+    """
+    create statement objects for Statement model
+    """
+
+    REPORTS = [
+        "Cân đối kế toán",
+        "Kết quả Kinh doanh",
+        "Lưu chuyển tiền tệ - Gián tiếp",
+        "Lưu chuyển tiền tệ - Trực tiếp",
+        "Thuyết minh",
+        "Chỉ số tài chính",
+        "Kết quả kiểm toán",
+    ]
+
+    def to_report_db(self, Statement, statement_category=None):
+        """
+        input:
+            Statement model,
+            statement_category: category in Statement.Categories.choices
+                                default == None
+        output:
+            add new statement in to Statement model
+        """
+
+        for report in self.REPORTS:
+            # check IntegrityError for duplicate report in the same category
+            try:
+                if statement_category:
+                    # check the statement_category input is in the list of allowed categories
+                    if statement_category in Statement.Categories:
+                        Statement.objects.create(
+                            statement_name=report, statement_category=statement_category
+                        )
+                    else:
+                        raise Exception(
+                            f"statement_category {statement_category} is not in categories list"
+                        )
+                else:
+                    Statement.objects.create(statement_name=report)
+
+            except IntegrityError:
+                print(f"statement '{report}' already existed")
+                pass
+
+
+class ReportRow(object):
+    def __init__(self, file, report_category="DN"):
+        self.file = file
+        self.report_category = report_category
+        self.reports = self.get_reports()
+
+    def get_reports(self):
+        """
+        output: reports dictionary contain: {report name: [report rows]}
+        """
+
+        wb = load_workbook(filename=self.file)
+        ws = wb[self.report_category]
+
+        reports = dict()
+        for col in ws.iter_cols(values_only=True):
+            # ignore value that is none, which is not string type, accept everything that is string
+            reports[col[0]] = [value for value in col[1:] if type(value) == str]
+        return reports
+
+    def report_to_db(self, Statement, StatementRow):
+        """
+        input: Statement model, StatementRow model
+        output: create object for StatementRow model
+        Problem: Have not catch Integrity Error
+        """
+
+        q = re.compile(r"^(\s*)([\w(].*$)")
+
+        for key, value in self.reports.items():
+            try:
+                statement = Statement.objects.get(
+                    statement_name=key, statement_category=self.report_category
+                )
+                row_order = 1
+            except ObjectDoesNotExist as e:
+                print(
+                    f"cannot retrieve object that has: {key} and {self.report_category}"
+                )
+                raise e
+
+            for row in value:
+                m = q.match(row)
+                row_properties = ""
+                try:
+                    # try to add properties to each row
+                    # There are two levels of indent is 5 or 10 in the dataset
+                    if len(m.group(1)) == 5:
+                        row_properties += "indented_1,"
+                    if len(m.group(1)) == 10:
+                        row_properties += "indented_2,"
+                    # capture CAPITALIEZD row
+                    if m.group(2).isupper():
+                        row_properties += "bold,"
+
+                    StatementRow.objects.create(
+                        statement=statement,
+                        title=row.strip(),
+                        row_properties=row_properties,
+                        row_order=row_order,
+                    )
+                    row_order += 1
+                except AttributeError as e:
+                    # catch AttributeError when m is not match
+                    print(f"this row: {value} in statement {key} is invalid")
+                    raise e
+                except IntegrityError as e:
+                    print(f"{row_order}: {statement}: {row}  has already exist")
+                    raise e
